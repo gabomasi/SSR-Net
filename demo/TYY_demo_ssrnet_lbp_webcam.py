@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 from SSRNET_model import SSR_net, SSR_net_general
 import timeit
+from mtcnn.mtcnn import MTCNN
 
 
 def draw_label(image, point, label, font=cv2.FONT_HERSHEY_SIMPLEX,
@@ -15,6 +16,7 @@ def draw_label(image, point, label, font=cv2.FONT_HERSHEY_SIMPLEX,
 def draw_results(detected,input_img,faces,ad,img_size,img_w,img_h,model,model_gender,time_detection,time_network,time_plot):
 
     #for i, d in enumerate(detected):
+    detected = list(map(lambda x: x['box'], detected))
     for i, (x,y,w,h) in enumerate(detected):
         #x1, y1, x2, y2, w, h = d.left(), d.top(), d.right() + 1, d.bottom() + 1, d.width(), d.height()
 
@@ -82,7 +84,8 @@ def main():
 
     weight_file_gender = "../pre-trained/wiki_gender_models/ssrnet_3_3_3_64_1.0_1.0/ssrnet_3_3_3_64_1.0_1.0.h5"
 
-    face_cascade = cv2.CascadeClassifier('lbpcascade_frontalface_improved.xml')
+    # face_cascade = cv2.CascadeClassifier('lbpcascade_frontalface_improved.xml')
+    detector = MTCNN()
     try:
         os.mkdir('./img')
     except OSError:
@@ -128,9 +131,10 @@ def main():
             time_plot = 0
 
             # detect faces using LBP detector
-            gray_img = cv2.cvtColor(input_img,cv2.COLOR_BGR2GRAY)
             start_time = timeit.default_timer()
-            detected = face_cascade.detectMultiScale(gray_img, 1.1)
+            # gray_img = cv2.cvtColor(input_img,cv2.COLOR_BGR2GRAY)
+            # detected = face_cascade.detectMultiScale(gray_img, 1.1)
+            detected = detector.detect_faces(input_img)
             elapsed_time = timeit.default_timer()-start_time
             time_detection = time_detection + elapsed_time
             faces = np.empty((len(detected), img_size, img_size, 3))
