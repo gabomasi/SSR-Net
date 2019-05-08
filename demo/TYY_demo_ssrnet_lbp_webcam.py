@@ -5,6 +5,24 @@ import timeit
 import time
 from mtcnn.mtcnn import MTCNN
 # import os
+import asyncio
+import requests
+import json
+
+
+async def nested(resultados):
+    # defining the api-endpoint
+    API_ENDPOINT = "https://postman-echo.com/post"
+
+    # your API key here
+    # your source code here
+
+    # data to be sent to api
+    # sending post request and saving response as response object
+    r = requests.post(url=API_ENDPOINT, json=json.dumps(resultados))
+
+    # extracting response text
+    print(r.json())
 
 
 def draw_label(image, point, label, font=cv2.FONT_HERSHEY_SIMPLEX,
@@ -50,8 +68,8 @@ def transform_resultados(detected, predicted_ages, predicted_genders):
         resultado = {
             'age': int(predicted_ages[i]),
             'gender': 'M',
-            'x': x,
-            'y': y,
+            'x': int(x),
+            'y': int(y),
         }
         if predicted_genders[i] < 0.5:
             resultado['gender'] = 'F'
@@ -60,9 +78,7 @@ def transform_resultados(detected, predicted_ages, predicted_genders):
 
 
 def show_results(detected, input_img, faces, ad, img_size, img_w, img_h, model, model_gender, time_detection, time_network, time_plot, mtcnn):
-
     draw = True
-
     if mtcnn:
         detected = list(map(lambda x: x['box'], detected))
 
@@ -89,7 +105,7 @@ def show_results(detected, input_img, faces, ad, img_size, img_w, img_h, model, 
     return input_img, time_network, time_plot, resultados
 
 
-def main():
+async def main():
     weight_file = "../pre-trained/megaface_asian/ssrnet_3_3_3_64_1.0_1.0/ssrnet_3_3_3_64_1.0_1.0.h5"
     weight_file_gender = "../pre-trained/wiki_gender_models/ssrnet_3_3_3_64_1.0_1.0/ssrnet_3_3_3_64_1.0_1.0.h5"
 
@@ -100,7 +116,7 @@ def main():
     else:
         detector = cv2.CascadeClassifier('lbpcascade_frontalface_improved.xml')
 
-    # load model and weights
+# load model and weights
     img_size = 64
     stage_num = [3, 3, 3]
     lambda_local = 1
@@ -120,13 +136,13 @@ def main():
     time_network = 0
     time_plot = 0
     ad = 0.5
-    sleep = 0
     img_idx = 0
     skip_frame = 10
+    skip_frame = 10
+    sleep = 1
+    send_post_time = time.time() + sleep
 
     while True:
-        if sleep:
-            time.sleep(sleep/1000)
         # get video frame
         img_idx = img_idx + 1
         ret, input_img = cap.read()
@@ -163,6 +179,7 @@ def main():
             mtccn
         )
 
+
         # Show the time cost (fps)
         # print('time_detection:', time_detection)
         # print('time_network:', time_network)
@@ -170,6 +187,10 @@ def main():
         # print('===============================')
         cv2.waitKey(1)
 
+        if send_post_time < time.time():
+            send_post_time = time.time() + sleep
+            await nested(resultados)
 
-if __name__ == '__main__':
-    main()
+loop = asyncio.get_event_loop()
+loop.run_until_complete(asyncio.wait([main()]))
+loop.close()
