@@ -1,9 +1,10 @@
-import os
 import cv2
 import numpy as np
 from SSRNET_model import SSR_net, SSR_net_general
 import timeit
+import time
 from mtcnn.mtcnn import MTCNN
+# import os
 
 
 def draw_label(image, point, label, font=cv2.FONT_HERSHEY_SIMPLEX,
@@ -13,13 +14,15 @@ def draw_label(image, point, label, font=cv2.FONT_HERSHEY_SIMPLEX,
     cv2.rectangle(image, (x, y - size[1]), (x + size[0], y), (255, 0, 0), cv2.FILLED)
     cv2.putText(image, label, point, font, font_scale, (255, 255, 255), thickness)
 
-def draw_results(detected,input_img,faces,ad,img_size,img_w,img_h,model,model_gender,time_detection,time_network,time_plot):
 
-    #for i, d in enumerate(detected):
-    detected = list(map(lambda x: x['box'], detected))
-    for i, (x,y,w,h) in enumerate(detected):
-        #x1, y1, x2, y2, w, h = d.left(), d.top(), d.right() + 1, d.bottom() + 1, d.width(), d.height()
+def show_results(detected, input_img, faces, ad, img_size, img_w, img_h, model, model_gender, time_detection, time_network, time_plot, mtcnn):
 
+    draw = False
+
+    if mtcnn:
+        detected = list(map(lambda x: x['box'], detected))
+
+    for i, (x, y, w, h) in enumerate(detected):
         x1 = x
         y1 = y
         x2 = x+w
@@ -30,76 +33,68 @@ def draw_results(detected,input_img,faces,ad,img_size,img_w,img_h,model,model_ge
         xw2 = min(int(x2 + ad * w), img_w - 1)
         yw2 = min(int(y2 + ad * h), img_h - 1)
 
-        faces[i,:,:,:] = cv2.resize(input_img[yw1:yw2 + 1, xw1:xw2 + 1, :], (img_size, img_size))
+        faces[i, :, :, :] = cv2.resize(input_img[yw1:yw2 + 1, xw1:xw2 + 1, :], (img_size, img_size))
+        faces[i, :, :, :] = cv2.normalize(faces[i, :, :, :], None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
 
-        faces[i,:,:,:] = cv2.normalize(faces[i,:,:,:], None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
-
-        # cv2.rectangle(input_img, (x1, y1), (x2, y2), (255, 0, 0), 2)
-        # cv2.rectangle(input_img, (xw1, yw1), (xw2, yw2), (0, 0, 255), 2)
-
+        if draw:
+            cv2.rectangle(input_img, (x1, y1), (x2, y2), (255, 0, 0), 2)
+            cv2.rectangle(input_img, (xw1, yw1), (xw2, yw2), (0, 0, 255), 2)
 
     start_time = timeit.default_timer()
     if len(detected) > 0:
         # predict ages and genders of the detected faces
         predicted_ages = model.predict(faces)
         predicted_genders = model_gender.predict(faces)
-
+    elapsed_time = timeit.default_timer()-start_time
+    time_network = time_network + elapsed_time
 
     # draw results
-    for i, (x,y,w,h) in enumerate(detected):
-        #label = "{}~{}, {}".format(int(predicted_ages[i]*4.54),int((predicted_ages[i]+1)*4.54),
-        #                       "F" if predicted_genders[i][0] > 0.5 else "M")
+    print('===========DETECTION===========')
+
+    for i, (x, y, w, h) in enumerate(detected):
         x1 = x
         y1 = y
         x2 = x+w
         y2 = y+h
 
-        gender_str = 'male'
-        if predicted_genders[i]<0.5:
-            gender_str = 'female'
+        gender_str = 'M'
+        if predicted_genders[i] < 0.5:
+            gender_str = 'F'
 
-        label = "{},{}".format(int(predicted_ages[i]),gender_str)
-        # draw_label(input_img, (x1, y1), label)
+        label = "{},{}".format(int(predicted_ages[i]), gender_str)
+        if draw:
+            draw_label(input_img, (x1, y1), label)
         print(label)
-
-    elapsed_time = timeit.default_timer()-start_time
-    time_network = time_network + elapsed_time
-
-
+    print('==============END==============')
 
     start_time = timeit.default_timer()
-
-    #input_img = cv2.cvtColor(input_img, cv2.COLOR_BGR2RGB)
-    # cv2.imshow("result", input_img)
-
-
+    if draw:
+        cv2.imshow("result", input_img)
     elapsed_time = timeit.default_timer()-start_time
     time_plot = time_plot + elapsed_time
 
-    return input_img,time_network,time_plot
+    return input_img, time_network, time_plot
+
 
 def main():
-
     weight_file = "../pre-trained/megaface_asian/ssrnet_3_3_3_64_1.0_1.0/ssrnet_3_3_3_64_1.0_1.0.h5"
-
     weight_file_gender = "../pre-trained/wiki_gender_models/ssrnet_3_3_3_64_1.0_1.0/ssrnet_3_3_3_64_1.0_1.0.h5"
 
-    # face_cascade = cv2.CascadeClassifier('lbpcascade_frontalface_improved.xml')
-    detector = MTCNN()
-    try:
-        os.mkdir('./img')
-    except OSError:
-        pass
+    mtccn = True
+
+    if mtccn:
+        detector = MTCNN()
+    else:
+        detector = cv2.CascadeClassifier('lbpcascade_frontalface_improved.xml')
 
     # load model and weights
     img_size = 64
-    stage_num = [3,3,3]
+    stage_num = [3, 3, 3]
     lambda_local = 1
     lambda_d = 1
-    model = SSR_net(img_size,stage_num, lambda_local, lambda_d)()
+    model = SSR_net(img_size, stage_num, lambda_local, lambda_d)()
     model.load_weights(weight_file)
-
-    model_gender = SSR_net_general(img_size,stage_num, lambda_local, lambda_d)()
+    model_gender = SSR_net_general(img_size, stage_num, lambda_local, lambda_d)()
     model_gender.load_weights(weight_file_gender)
 
     # capture video
@@ -107,52 +102,60 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1024*1)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 768*1)
 
-
-
-    img_idx = 0
-    detected = '' #make this not local variable
+    detected = ''
     time_detection = 0
     time_network = 0
     time_plot = 0
-    skip_frame = 10 # every 10 frame do 1 detection and network forward propagation
     ad = 0.5
+    sleep = 0
+    img_idx = 0
+    skip_frame = 10
 
     while True:
+        if sleep:
+            time.sleep(sleep/1000)
         # get video frame
-        ret, input_img = cap.read()
-
         img_idx = img_idx + 1
+        ret, input_img = cap.read()
         img_h, img_w, _ = np.shape(input_img)
 
-
-        if img_idx==1 or img_idx%skip_frame == 0:
+        if img_idx == 1 or img_idx % skip_frame == 0:
             time_detection = 0
             time_network = 0
             time_plot = 0
-
             # detect faces using LBP detector
             start_time = timeit.default_timer()
-            # gray_img = cv2.cvtColor(input_img,cv2.COLOR_BGR2GRAY)
-            # detected = face_cascade.detectMultiScale(gray_img, 1.1)
-            detected = detector.detect_faces(input_img)
+            gray_img = cv2.cvtColor(input_img, cv2.COLOR_BGR2GRAY)
+            if mtccn:
+                detected = detector.detect_faces(input_img)
+            else:
+                detected = detector.detectMultiScale(gray_img, 1.1)
             elapsed_time = timeit.default_timer()-start_time
             time_detection = time_detection + elapsed_time
             faces = np.empty((len(detected), img_size, img_size, 3))
 
+        input_img, time_network, time_plot = show_results(
+            detected,
+            input_img,
+            faces,
+            ad,
+            img_size,
+            img_w,
+            img_h,
+            model,
+            model_gender,
+            time_detection,
+            time_network,
+            time_plot,
+            mtccn
+        )
 
-            input_img,time_network,time_plot = draw_results(detected,input_img,faces,ad,img_size,img_w,img_h,model,model_gender,time_detection,time_network,time_plot)
-            cv2.imwrite('img/'+str(img_idx)+'.png',input_img)
-
-        else:
-            input_img,time_network,time_plot = draw_results(detected,input_img,faces,ad,img_size,img_w,img_h,model,model_gender,time_detection,time_network,time_plot)
-
-        #Show the time cost (fps)
-        print('avefps_time_detection:',1/time_detection)
-        print('avefps_time_network:',skip_frame/time_network)
-        print('avefps_time_plot:',skip_frame/time_plot)
-        print('===============================')
-        key = cv2.waitKey(1)
-
+        # Show the time cost (fps)
+        # print('time_detection:', time_detection)
+        # print('time_network:', time_network)
+        # print('time_plot:', time_plot)
+        # print('===============================')
+        cv2.waitKey(1)
 
 
 if __name__ == '__main__':
