@@ -19,7 +19,7 @@ async def nested(resultados):
 
     # data to be sent to api
     # sending post request and saving response as response object
-    r = requests.post(url=API_ENDPOINT, json=json.dumps(resultados))
+    r = requests.post(url=API_ENDPOINT, json=json.dumps({'people': resultados}))
 
     # extracting response text
     print(r.json())
@@ -67,12 +67,12 @@ def transform_resultados(detected, predicted_ages, predicted_genders):
     for i, (x, y, w, h) in enumerate(detected):
         resultado = {
             'age': int(predicted_ages[i]),
-            'gender': 'M',
+            'gender': 'Masculino',
             'x': int(x),
             'y': int(y),
         }
         if predicted_genders[i] < 0.5:
-            resultado['gender'] = 'F'
+            resultado['gender'] = 'Femenino'
         resultados.append(resultado)
     return resultados
 
