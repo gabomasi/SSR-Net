@@ -15,13 +15,16 @@ def draw_label(image, point, label, font=cv2.FONT_HERSHEY_SIMPLEX,
     cv2.putText(image, label, point, font, font_scale, (255, 255, 255), thickness)
 
 
-def show_results(detected, input_img, faces, ad, img_size, img_w, img_h, model, model_gender, time_detection, time_network, time_plot, mtcnn):
+def draw_resultados(resultados, input_img):
+    for resultado in resultados:
+        print('===========DETECTION===========')
+        label = "{},{}".format(resultado['age'], resultado['gender'])
+        draw_label(input_img, (resultado['x'], resultado['y']), label)
+        print(label)
+        print('==============END==============')
 
-    draw = False
 
-    if mtcnn:
-        detected = list(map(lambda x: x['box'], detected))
-
+def transform_faces(detected, input_img, faces, ad, img_size, img_w, img_h, draw):
     for i, (x, y, w, h) in enumerate(detected):
         x1 = x
         y1 = y
@@ -40,47 +43,57 @@ def show_results(detected, input_img, faces, ad, img_size, img_w, img_h, model, 
             cv2.rectangle(input_img, (x1, y1), (x2, y2), (255, 0, 0), 2)
             cv2.rectangle(input_img, (xw1, yw1), (xw2, yw2), (0, 0, 255), 2)
 
+
+def transform_resultados(detected, predicted_ages, predicted_genders):
+    resultados = []
+    for i, (x, y, w, h) in enumerate(detected):
+        resultado = {
+            'age': int(predicted_ages[i]),
+            'gender': 'M',
+            'x': x,
+            'y': y,
+        }
+        if predicted_genders[i] < 0.5:
+            resultado['gender'] = 'F'
+        resultados.append(resultado)
+    return resultados
+
+
+def show_results(detected, input_img, faces, ad, img_size, img_w, img_h, model, model_gender, time_detection, time_network, time_plot, mtcnn):
+
+    draw = True
+
+    if mtcnn:
+        detected = list(map(lambda x: x['box'], detected))
+
+    transform_faces(detected, input_img, faces, ad, img_size, img_w, img_h, draw)
+
+    # predict ages and genders of the detected faces
+    resultados = []
     start_time = timeit.default_timer()
     if len(detected) > 0:
-        # predict ages and genders of the detected faces
         predicted_ages = model.predict(faces)
         predicted_genders = model_gender.predict(faces)
+        resultados = transform_resultados(detected, predicted_ages, predicted_genders)
     elapsed_time = timeit.default_timer()-start_time
     time_network = time_network + elapsed_time
 
-    # draw results
-    print('===========DETECTION===========')
-
-    for i, (x, y, w, h) in enumerate(detected):
-        x1 = x
-        y1 = y
-        x2 = x+w
-        y2 = y+h
-
-        gender_str = 'M'
-        if predicted_genders[i] < 0.5:
-            gender_str = 'F'
-
-        label = "{},{}".format(int(predicted_ages[i]), gender_str)
-        if draw:
-            draw_label(input_img, (x1, y1), label)
-        print(label)
-    print('==============END==============')
-
+    # Render
     start_time = timeit.default_timer()
     if draw:
+        draw_resultados(resultados, input_img)
         cv2.imshow("result", input_img)
     elapsed_time = timeit.default_timer()-start_time
     time_plot = time_plot + elapsed_time
 
-    return input_img, time_network, time_plot
+    return input_img, time_network, time_plot, resultados
 
 
 def main():
     weight_file = "../pre-trained/megaface_asian/ssrnet_3_3_3_64_1.0_1.0/ssrnet_3_3_3_64_1.0_1.0.h5"
     weight_file_gender = "../pre-trained/wiki_gender_models/ssrnet_3_3_3_64_1.0_1.0/ssrnet_3_3_3_64_1.0_1.0.h5"
 
-    mtccn = True
+    mtccn = False
 
     if mtccn:
         detector = MTCNN()
@@ -134,7 +147,7 @@ def main():
             time_detection = time_detection + elapsed_time
             faces = np.empty((len(detected), img_size, img_size, 3))
 
-        input_img, time_network, time_plot = show_results(
+        input_img, time_network, time_plot, resultados = show_results(
             detected,
             input_img,
             faces,
