@@ -12,17 +12,17 @@ import json
 
 async def nested(resultados):
     # defining the api-endpoint
-    API_ENDPOINT = "https://postman-echo.com/post"
+    API_ENDPOINT = "http://localhost/api/people-event"
 
     # your API key here
     # your source code here
 
     # data to be sent to api
     # sending post request and saving response as response object
-    r = requests.post(url=API_ENDPOINT, json=json.dumps({'people': resultados}))
+    r = requests.post(url=API_ENDPOINT, json={'people': resultados}, headers={"Content-Type": "application/json", "Accept": "application/json"})
 
     # extracting response text
-    print(r.json())
+    # print(r.json())
 
 
 def draw_label(image, point, label, font=cv2.FONT_HERSHEY_SIMPLEX,
@@ -78,7 +78,7 @@ def transform_resultados(detected, predicted_ages, predicted_genders):
 
 
 def show_results(detected, input_img, faces, ad, img_size, img_w, img_h, model, model_gender, time_detection, time_network, time_plot, mtcnn):
-    draw = True
+    draw = False
     if mtcnn:
         detected = list(map(lambda x: x['box'], detected))
 
